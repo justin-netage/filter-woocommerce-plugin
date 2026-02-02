@@ -28,6 +28,18 @@ define( 'FILTER_WOOCOMMERCE_VERSION', '1.0.0' );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+define( 'FILTER_WOOCOMMERCE_PLUGIN_FILE', __FILE__ );
+
+/**
+ * Initialize the GitHub updater
+ *
+ * Runs early to ensure updates work even if WooCommerce is not active.
+ */
+function filter_woocommerce_init_updater() {
+    require_once FILTER_WOOCOMMERCE_PLUGIN_DIR . 'includes/class-filter-woocommerce-updater.php';
+    new Filter_WooCommerce_Updater( FILTER_WOOCOMMERCE_PLUGIN_FILE );
+}
+add_action( 'admin_init', 'filter_woocommerce_init_updater' );
 
 /**
  * Check if WooCommerce is active
