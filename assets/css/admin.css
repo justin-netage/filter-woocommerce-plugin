@@ -1,0 +1,81 @@
+/**
+ * Filter for WooCommerce - Admin Styles
+ *
+ * @package FilterWooCommerce
+ */
+
+/* Settings Page */
+.wrap h1 {
+    margin-bottom: 20px;
+}
+
+.wrap .form-table th {
+    width: 250px;
+}
+
+.wrap .form-table td label {
+    display: block;
+}
+
+/* Shortcode Documentation */
+.wrap hr {
+    margin: 30px 0;
+    border: none;
+    border-top: 1px solid #ddd;
+}
+
+.wrap h2 {
+    margin-top: 30px;
+}
+
+.wrap h3 {
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.wrap code {
+    display: inline-block;
+    padding: 5px 10px;
+    background-color: #f4f4f4;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+/* Shortcode Table */
+.wrap table.widefat {
+    margin-top: 10px;
+}
+
+.wrap table.widefat th,
+.wrap table.widefat td {
+    padding: 10px;
+}
+
+.wrap table.widefat code {
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+/* Notice Styles */
+.filter-woocommerce-notice {
+    padding: 12px;
+    margin: 15px 0;
+    border-left: 4px solid;
+    background-color: #fff;
+}
+
+.filter-woocommerce-notice.info {
+    border-color: #00a0d2;
+}
+
+.filter-woocommerce-notice.success {
+    border-color: #46b450;
+}
+
+.filter-woocommerce-notice.warning {
+    border-color: #ffb900;
+}
+
+.filter-woocommerce-notice.error {
+    border-color: #dc3232;
+}

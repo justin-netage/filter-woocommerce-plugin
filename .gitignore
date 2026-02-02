@@ -1,0 +1,30 @@
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build artifacts
+*.log
+*.cache
+.phpunit.result.cache
+
+# Environment
+.env
+.env.local
+
+# Compiled assets
+*.min.css
+*.min.js
+
+# Package files
+*.zip
+*.tar.gz
