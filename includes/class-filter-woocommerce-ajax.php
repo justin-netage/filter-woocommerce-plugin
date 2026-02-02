@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Filter_WooCommerce_Ajax class
  *
- * Handles AJAX requests for product filtering
+ * Handles AJAX requests for vehicle product filtering
  */
 class Filter_WooCommerce_Ajax {
 
@@ -32,6 +32,10 @@ class Filter_WooCommerce_Ajax {
         add_action( 'wp_ajax_filter_woocommerce_products', array( $this, 'filter_products' ) );
         add_action( 'wp_ajax_nopriv_filter_woocommerce_products', array( $this, 'filter_products' ) );
 
+        // AJAX get dependent terms (e.g., models for a specific make)
+        add_action( 'wp_ajax_filter_woocommerce_get_terms', array( $this, 'get_dependent_terms' ) );
+        add_action( 'wp_ajax_nopriv_filter_woocommerce_get_terms', array( $this, 'get_dependent_terms' ) );
+
         // AJAX get filter counts
         add_action( 'wp_ajax_filter_woocommerce_counts', array( $this, 'get_filter_counts' ) );
         add_action( 'wp_ajax_nopriv_filter_woocommerce_counts', array( $this, 'get_filter_counts' ) );
@@ -46,6 +50,9 @@ class Filter_WooCommerce_Ajax {
             wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
         }
 
+        $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
+        $vehicle_attributes = $filter_handler->get_vehicle_attributes();
+
         // Build query args
         $args = array(
             'post_type'      => 'product',
@@ -54,77 +61,55 @@ class Filter_WooCommerce_Ajax {
             'paged'          => isset( $_POST['page'] ) ? absint( $_POST['page'] ) : 1,
         );
 
-        // Apply filters from POST data
-        $meta_query = array();
-        $tax_query  = array();
+        $tax_query = array();
 
-        // Price filter
-        if ( isset( $_POST['min_price'] ) || isset( $_POST['max_price'] ) ) {
-            $meta_query[] = array(
-                'key'     => '_price',
-                'type'    => 'DECIMAL(10,2)',
-                'compare' => 'BETWEEN',
-                'value'   => array(
-                    isset( $_POST['min_price'] ) ? floatval( $_POST['min_price'] ) : 0,
-                    isset( $_POST['max_price'] ) ? floatval( $_POST['max_price'] ) : PHP_INT_MAX,
-                ),
-            );
-        }
+        // Process each vehicle attribute filter
+        foreach ( $vehicle_attributes as $attr_slug => $config ) {
+            if ( $config['type'] === 'range' ) {
+                // Range filter
+                $min_key = 'filter_' . $attr_slug . '_min';
+                $max_key = 'filter_' . $attr_slug . '_max';
 
-        // Category filter
-        if ( ! empty( $_POST['categories'] ) ) {
-            $categories = array_map( 'absint', (array) $_POST['categories'] );
-            $tax_query[] = array(
-                'taxonomy' => 'product_cat',
-                'field'    => 'term_id',
-                'terms'    => $categories,
-                'operator' => 'IN',
-            );
-        }
+                $min_val = isset( $_POST[ $min_key ] ) ? sanitize_text_field( $_POST[ $min_key ] ) : null;
+                $max_val = isset( $_POST[ $max_key ] ) ? sanitize_text_field( $_POST[ $max_key ] ) : null;
 
-        // Attribute filters
-        if ( ! empty( $_POST['attributes'] ) && is_array( $_POST['attributes'] ) ) {
-            foreach ( $_POST['attributes'] as $attribute => $terms ) {
-                $attribute = sanitize_text_field( $attribute );
-                $terms     = array_map( 'sanitize_text_field', (array) $terms );
+                if ( $min_val !== null || $max_val !== null ) {
+                    $matching_terms = $this->get_terms_in_range(
+                        'pa_' . $attr_slug,
+                        $min_val,
+                        $max_val
+                    );
 
-                $tax_query[] = array(
-                    'taxonomy' => 'pa_' . $attribute,
-                    'field'    => 'slug',
-                    'terms'    => $terms,
-                    'operator' => 'IN',
-                );
+                    if ( ! empty( $matching_terms ) ) {
+                        $tax_query[] = array(
+                            'taxonomy' => 'pa_' . $attr_slug,
+                            'field'    => 'slug',
+                            'terms'    => $matching_terms,
+                            'operator' => 'IN',
+                        );
+                    } else {
+                        // No matching terms, return empty
+                        $args['post__in'] = array( 0 );
+                    }
+                }
+            } else {
+                // Select filter
+                $param_key = 'filter_' . $attr_slug;
+
+                if ( isset( $_POST[ $param_key ] ) && $_POST[ $param_key ] !== '' ) {
+                    $values = is_array( $_POST[ $param_key ] )
+                        ? $_POST[ $param_key ]
+                        : explode( ',', $_POST[ $param_key ] );
+                    $values = array_map( 'sanitize_text_field', $values );
+
+                    $tax_query[] = array(
+                        'taxonomy' => 'pa_' . $attr_slug,
+                        'field'    => 'slug',
+                        'terms'    => $values,
+                        'operator' => 'IN',
+                    );
+                }
             }
-        }
-
-        // Rating filter
-        if ( ! empty( $_POST['rating'] ) ) {
-            $ratings = array_map( 'absint', (array) $_POST['rating'] );
-            $rating_terms = array();
-            foreach ( $ratings as $rating ) {
-                $rating_terms[] = 'rated-' . $rating;
-            }
-            $tax_query[] = array(
-                'taxonomy' => 'product_visibility',
-                'field'    => 'name',
-                'terms'    => $rating_terms,
-                'operator' => 'IN',
-            );
-        }
-
-        // On sale filter
-        if ( ! empty( $_POST['on_sale'] ) ) {
-            $product_ids_on_sale = wc_get_product_ids_on_sale();
-            $args['post__in'] = array_merge( array( 0 ), $product_ids_on_sale );
-        }
-
-        // In stock filter
-        if ( ! empty( $_POST['in_stock'] ) ) {
-            $meta_query[] = array(
-                'key'     => '_stock_status',
-                'value'   => 'instock',
-                'compare' => '=',
-            );
         }
 
         // Sorting
@@ -145,27 +130,14 @@ class Filter_WooCommerce_Ajax {
                     $args['orderby'] = 'date';
                     $args['order']   = 'DESC';
                     break;
-                case 'popularity':
-                    $args['meta_key'] = 'total_sales';
-                    $args['orderby']  = 'meta_value_num';
-                    $args['order']    = 'DESC';
-                    break;
-                case 'rating':
-                    $args['meta_key'] = '_wc_average_rating';
-                    $args['orderby']  = 'meta_value_num';
-                    $args['order']    = 'DESC';
-                    break;
                 default:
                     $args['orderby'] = 'menu_order title';
                     $args['order']   = 'ASC';
             }
         }
 
-        if ( ! empty( $meta_query ) ) {
-            $args['meta_query'] = $meta_query;
-        }
-
         if ( ! empty( $tax_query ) ) {
+            $tax_query['relation'] = 'AND';
             $args['tax_query'] = $tax_query;
         }
 
@@ -185,7 +157,7 @@ class Filter_WooCommerce_Ajax {
 
             woocommerce_product_loop_end();
         } else {
-            echo '<p class="woocommerce-info">' . esc_html__( 'No products found matching your criteria.', 'filter-woocommerce' ) . '</p>';
+            echo '<p class="woocommerce-info">' . esc_html__( 'No vehicles found matching your criteria.', 'filter-woocommerce' ) . '</p>';
         }
 
         $html = ob_get_clean();
@@ -215,6 +187,85 @@ class Filter_WooCommerce_Ajax {
     }
 
     /**
+     * Get terms that fall within a numeric range
+     *
+     * @param string      $taxonomy Taxonomy name.
+     * @param string|null $min      Minimum value.
+     * @param string|null $max      Maximum value.
+     * @return array Array of term slugs.
+     */
+    private function get_terms_in_range( $taxonomy, $min, $max ) {
+        $terms = get_terms( array(
+            'taxonomy'   => $taxonomy,
+            'hide_empty' => true,
+        ) );
+
+        if ( is_wp_error( $terms ) || empty( $terms ) ) {
+            return array();
+        }
+
+        $matching_slugs = array();
+
+        foreach ( $terms as $term ) {
+            $numeric_value = preg_replace( '/[^0-9]/', '', $term->name );
+
+            if ( $numeric_value === '' ) {
+                continue;
+            }
+
+            $numeric_value = intval( $numeric_value );
+            $include = true;
+
+            if ( $min !== null && $min !== '' && $numeric_value < intval( $min ) ) {
+                $include = false;
+            }
+            if ( $max !== null && $max !== '' && $numeric_value > intval( $max ) ) {
+                $include = false;
+            }
+
+            if ( $include ) {
+                $matching_slugs[] = $term->slug;
+            }
+        }
+
+        return $matching_slugs;
+    }
+
+    /**
+     * Get dependent terms via AJAX (e.g., models for a selected make)
+     */
+    public function get_dependent_terms() {
+        // Verify nonce
+        if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'filter_woocommerce_nonce' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
+        }
+
+        $attribute = isset( $_POST['attribute'] ) ? sanitize_text_field( $_POST['attribute'] ) : '';
+        $parent_attribute = isset( $_POST['parent_attribute'] ) ? sanitize_text_field( $_POST['parent_attribute'] ) : '';
+        $parent_value = isset( $_POST['parent_value'] ) ? sanitize_text_field( $_POST['parent_value'] ) : '';
+
+        if ( empty( $attribute ) ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid attribute.', 'filter-woocommerce' ) ) );
+        }
+
+        $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
+        $terms = $filter_handler->get_attribute_terms( $attribute, $parent_value );
+
+        $options = array();
+        foreach ( $terms as $term ) {
+            $options[] = array(
+                'slug'  => $term->slug,
+                'name'  => $term->name,
+                'count' => $term->count,
+            );
+        }
+
+        wp_send_json_success( array(
+            'terms' => $options,
+        ) );
+    }
+
+    /**
      * Get filter counts via AJAX
      */
     public function get_filter_counts() {
@@ -223,36 +274,20 @@ class Filter_WooCommerce_Ajax {
             wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
         }
 
+        $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
+        $vehicle_attributes = $filter_handler->get_vehicle_attributes();
         $counts = array();
 
-        // Get category counts
-        $categories = get_terms(
-            array(
-                'taxonomy'   => 'product_cat',
+        foreach ( $vehicle_attributes as $attr_slug => $config ) {
+            $taxonomy = 'pa_' . $attr_slug;
+            $terms = get_terms( array(
+                'taxonomy'   => $taxonomy,
                 'hide_empty' => true,
-            )
-        );
-
-        if ( ! is_wp_error( $categories ) ) {
-            foreach ( $categories as $category ) {
-                $counts['categories'][ $category->term_id ] = $category->count;
-            }
-        }
-
-        // Get attribute counts
-        $attribute_taxonomies = wc_get_attribute_taxonomies();
-        foreach ( $attribute_taxonomies as $attribute ) {
-            $taxonomy = wc_attribute_taxonomy_name( $attribute->attribute_name );
-            $terms    = get_terms(
-                array(
-                    'taxonomy'   => $taxonomy,
-                    'hide_empty' => true,
-                )
-            );
+            ) );
 
             if ( ! is_wp_error( $terms ) ) {
                 foreach ( $terms as $term ) {
-                    $counts['attributes'][ $attribute->attribute_name ][ $term->slug ] = $term->count;
+                    $counts[ $attr_slug ][ $term->slug ] = $term->count;
                 }
             }
         }

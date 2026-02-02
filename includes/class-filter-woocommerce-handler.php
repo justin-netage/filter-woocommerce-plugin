@@ -13,9 +13,59 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Filter_WooCommerce_Handler class
  *
- * Handles the main filtering logic for WooCommerce products
+ * Handles the main filtering logic for vehicle product attributes
  */
 class Filter_WooCommerce_Handler {
+
+    /**
+     * Vehicle attributes configuration
+     * Maps display names to WooCommerce attribute slugs
+     *
+     * @var array
+     */
+    private $vehicle_attributes = array(
+        'new-or-used' => array(
+            'label'      => 'New or Used',
+            'type'       => 'select',
+            'query_type' => 'or',
+        ),
+        'make' => array(
+            'label'      => 'Make',
+            'type'       => 'select',
+            'query_type' => 'or',
+        ),
+        'model' => array(
+            'label'      => 'Model',
+            'type'       => 'select',
+            'query_type' => 'or',
+            'depends_on' => 'make',
+        ),
+        'region' => array(
+            'label'      => 'Region',
+            'type'       => 'select',
+            'query_type' => 'or',
+        ),
+        'transmission' => array(
+            'label'      => 'Transmission',
+            'type'       => 'select',
+            'query_type' => 'or',
+        ),
+        'body-type' => array(
+            'label'      => 'Body Type',
+            'type'       => 'select',
+            'query_type' => 'or',
+        ),
+        'kilometers' => array(
+            'label'      => 'Kilometers',
+            'type'       => 'range',
+            'query_type' => 'range',
+        ),
+        'vehicle-year' => array(
+            'label'      => 'Year Model',
+            'type'       => 'range',
+            'query_type' => 'range',
+        ),
+    );
 
     /**
      * Active filters
@@ -28,6 +78,12 @@ class Filter_WooCommerce_Handler {
      * Constructor
      */
     public function __construct() {
+        // Allow customization of vehicle attributes via filter
+        $this->vehicle_attributes = apply_filters(
+            'filter_woocommerce_vehicle_attributes',
+            $this->vehicle_attributes
+        );
+
         $this->init_hooks();
     }
 
@@ -43,38 +99,41 @@ class Filter_WooCommerce_Handler {
     }
 
     /**
+     * Get configured vehicle attributes
+     *
+     * @return array
+     */
+    public function get_vehicle_attributes() {
+        return $this->vehicle_attributes;
+    }
+
+    /**
      * Parse filter parameters from URL
      */
     public function parse_filter_params() {
-        // Price filter
-        if ( isset( $_GET['min_price'] ) ) {
-            $this->active_filters['min_price'] = floatval( $_GET['min_price'] );
-        }
-        if ( isset( $_GET['max_price'] ) ) {
-            $this->active_filters['max_price'] = floatval( $_GET['max_price'] );
-        }
+        foreach ( $this->vehicle_attributes as $slug => $config ) {
+            $param_name = 'filter_' . $slug;
 
-        // Attribute filters
-        foreach ( $_GET as $key => $value ) {
-            if ( strpos( $key, 'filter_' ) === 0 ) {
-                $attribute = str_replace( 'filter_', '', $key );
-                $this->active_filters['attributes'][ $attribute ] = array_map( 'sanitize_text_field', explode( ',', $value ) );
+            if ( $config['type'] === 'range' ) {
+                // Range filter (min/max)
+                $min_param = $param_name . '_min';
+                $max_param = $param_name . '_max';
+
+                if ( isset( $_GET[ $min_param ] ) && $_GET[ $min_param ] !== '' ) {
+                    $this->active_filters[ $slug ]['min'] = sanitize_text_field( $_GET[ $min_param ] );
+                }
+                if ( isset( $_GET[ $max_param ] ) && $_GET[ $max_param ] !== '' ) {
+                    $this->active_filters[ $slug ]['max'] = sanitize_text_field( $_GET[ $max_param ] );
+                }
+            } else {
+                // Select/checkbox filter
+                if ( isset( $_GET[ $param_name ] ) && $_GET[ $param_name ] !== '' ) {
+                    $values = is_array( $_GET[ $param_name ] )
+                        ? $_GET[ $param_name ]
+                        : explode( ',', $_GET[ $param_name ] );
+                    $this->active_filters[ $slug ] = array_map( 'sanitize_text_field', $values );
+                }
             }
-        }
-
-        // Rating filter
-        if ( isset( $_GET['rating_filter'] ) ) {
-            $this->active_filters['rating'] = array_map( 'absint', explode( ',', $_GET['rating_filter'] ) );
-        }
-
-        // On sale filter
-        if ( isset( $_GET['on_sale'] ) && $_GET['on_sale'] === '1' ) {
-            $this->active_filters['on_sale'] = true;
-        }
-
-        // In stock filter
-        if ( isset( $_GET['in_stock'] ) && $_GET['in_stock'] === '1' ) {
-            $this->active_filters['in_stock'] = true;
         }
     }
 
@@ -89,160 +148,252 @@ class Filter_WooCommerce_Handler {
             return;
         }
 
-        $meta_query = $query->get( 'meta_query', array() );
         $tax_query  = $query->get( 'tax_query', array() );
+        $meta_query = $query->get( 'meta_query', array() );
 
-        // Price filter
-        if ( isset( $this->active_filters['min_price'] ) || isset( $this->active_filters['max_price'] ) ) {
-            $price_meta = array(
-                'key'     => '_price',
-                'type'    => 'DECIMAL(10,2)',
-                'compare' => 'BETWEEN',
-                'value'   => array(
-                    isset( $this->active_filters['min_price'] ) ? $this->active_filters['min_price'] : 0,
-                    isset( $this->active_filters['max_price'] ) ? $this->active_filters['max_price'] : PHP_INT_MAX,
-                ),
-            );
-            $meta_query[] = $price_meta;
-        }
+        foreach ( $this->active_filters as $attribute_slug => $filter_value ) {
+            $config   = $this->vehicle_attributes[ $attribute_slug ] ?? null;
+            $taxonomy = 'pa_' . $attribute_slug;
 
-        // On sale filter
-        if ( ! empty( $this->active_filters['on_sale'] ) ) {
-            $product_ids_on_sale = wc_get_product_ids_on_sale();
-            $query->set( 'post__in', array_merge( array( 0 ), $product_ids_on_sale ) );
-        }
+            if ( ! $config ) {
+                continue;
+            }
 
-        // In stock filter
-        if ( ! empty( $this->active_filters['in_stock'] ) ) {
-            $meta_query[] = array(
-                'key'     => '_stock_status',
-                'value'   => 'instock',
-                'compare' => '=',
-            );
-        }
+            if ( $config['type'] === 'range' ) {
+                // Range filter using taxonomy term values
+                // For range attributes, we need to filter by the numeric value of terms
+                if ( isset( $filter_value['min'] ) || isset( $filter_value['max'] ) ) {
+                    $matching_terms = $this->get_terms_in_range(
+                        $taxonomy,
+                        $filter_value['min'] ?? null,
+                        $filter_value['max'] ?? null
+                    );
 
-        // Attribute filters
-        if ( ! empty( $this->active_filters['attributes'] ) ) {
-            foreach ( $this->active_filters['attributes'] as $attribute => $terms ) {
+                    if ( ! empty( $matching_terms ) ) {
+                        $tax_query[] = array(
+                            'taxonomy' => $taxonomy,
+                            'field'    => 'slug',
+                            'terms'    => $matching_terms,
+                            'operator' => 'IN',
+                        );
+                    } else {
+                        // No matching terms, ensure no products are returned
+                        $query->set( 'post__in', array( 0 ) );
+                    }
+                }
+            } else {
+                // Standard select/checkbox filter
                 $tax_query[] = array(
-                    'taxonomy' => 'pa_' . $attribute,
+                    'taxonomy' => $taxonomy,
                     'field'    => 'slug',
-                    'terms'    => $terms,
+                    'terms'    => (array) $filter_value,
                     'operator' => 'IN',
                 );
             }
         }
 
-        // Rating filter
-        if ( ! empty( $this->active_filters['rating'] ) ) {
-            $rating_terms = array();
-            foreach ( $this->active_filters['rating'] as $rating ) {
-                $rating_terms[] = 'rated-' . $rating;
-            }
-            $tax_query[] = array(
-                'taxonomy' => 'product_visibility',
-                'field'    => 'name',
-                'terms'    => $rating_terms,
-                'operator' => 'IN',
-            );
+        if ( ! empty( $tax_query ) ) {
+            $tax_query['relation'] = 'AND';
+            $query->set( 'tax_query', $tax_query );
         }
 
-        $query->set( 'meta_query', $meta_query );
-        $query->set( 'tax_query', $tax_query );
+        if ( ! empty( $meta_query ) ) {
+            $query->set( 'meta_query', $meta_query );
+        }
     }
 
     /**
-     * Get available filters for products
+     * Get taxonomy terms that fall within a numeric range
+     *
+     * @param string     $taxonomy Taxonomy name.
+     * @param string|null $min     Minimum value.
+     * @param string|null $max     Maximum value.
+     * @return array Array of term slugs.
+     */
+    private function get_terms_in_range( $taxonomy, $min, $max ) {
+        $terms = get_terms( array(
+            'taxonomy'   => $taxonomy,
+            'hide_empty' => true,
+        ) );
+
+        if ( is_wp_error( $terms ) || empty( $terms ) ) {
+            return array();
+        }
+
+        $matching_slugs = array();
+
+        foreach ( $terms as $term ) {
+            // Extract numeric value from term name/slug
+            $numeric_value = preg_replace( '/[^0-9]/', '', $term->name );
+
+            if ( $numeric_value === '' ) {
+                continue;
+            }
+
+            $numeric_value = intval( $numeric_value );
+            $include = true;
+
+            if ( $min !== null && $numeric_value < intval( $min ) ) {
+                $include = false;
+            }
+            if ( $max !== null && $numeric_value > intval( $max ) ) {
+                $include = false;
+            }
+
+            if ( $include ) {
+                $matching_slugs[] = $term->slug;
+            }
+        }
+
+        return $matching_slugs;
+    }
+
+    /**
+     * Get available filter options for all vehicle attributes
      *
      * @return array
      */
     public function get_available_filters() {
         $filters = array();
 
-        // Price range
-        $filters['price'] = $this->get_price_range();
+        foreach ( $this->vehicle_attributes as $slug => $config ) {
+            $taxonomy = 'pa_' . $slug;
+            $terms    = get_terms( array(
+                'taxonomy'   => $taxonomy,
+                'hide_empty' => true,
+                'orderby'    => 'name',
+                'order'      => 'ASC',
+            ) );
 
-        // Product attributes
-        $filters['attributes'] = $this->get_product_attributes();
+            if ( is_wp_error( $terms ) || empty( $terms ) ) {
+                continue;
+            }
 
-        // Categories
-        $filters['categories'] = $this->get_product_categories();
+            $filter_data = array(
+                'label'  => $config['label'],
+                'slug'   => $slug,
+                'type'   => $config['type'],
+                'terms'  => $terms,
+            );
 
-        // Rating
-        $filters['rating'] = array( 1, 2, 3, 4, 5 );
+            // For range filters, also get min/max values
+            if ( $config['type'] === 'range' ) {
+                $range = $this->get_attribute_range( $terms );
+                $filter_data['min'] = $range['min'];
+                $filter_data['max'] = $range['max'];
+            }
+
+            // Add dependency info if exists
+            if ( isset( $config['depends_on'] ) ) {
+                $filter_data['depends_on'] = $config['depends_on'];
+            }
+
+            $filters[ $slug ] = $filter_data;
+        }
 
         return $filters;
     }
 
     /**
-     * Get price range for products
+     * Get min/max range from terms
      *
+     * @param array $terms Array of term objects.
      * @return array
      */
-    public function get_price_range() {
-        global $wpdb;
+    private function get_attribute_range( $terms ) {
+        $values = array();
 
-        $min = $wpdb->get_var(
-            "SELECT MIN( CAST( meta_value AS DECIMAL(10,2) ) )
-            FROM {$wpdb->postmeta}
-            WHERE meta_key = '_price'
-            AND meta_value != ''"
-        );
-
-        $max = $wpdb->get_var(
-            "SELECT MAX( CAST( meta_value AS DECIMAL(10,2) ) )
-            FROM {$wpdb->postmeta}
-            WHERE meta_key = '_price'
-            AND meta_value != ''"
-        );
-
-        return array(
-            'min' => floor( floatval( $min ) ),
-            'max' => ceil( floatval( $max ) ),
-        );
-    }
-
-    /**
-     * Get product attributes for filtering
-     *
-     * @return array
-     */
-    public function get_product_attributes() {
-        $attributes = array();
-        $attribute_taxonomies = wc_get_attribute_taxonomies();
-
-        foreach ( $attribute_taxonomies as $attribute ) {
-            $taxonomy = wc_attribute_taxonomy_name( $attribute->attribute_name );
-            $terms    = get_terms(
-                array(
-                    'taxonomy'   => $taxonomy,
-                    'hide_empty' => true,
-                )
-            );
-
-            if ( ! empty( $terms ) && ! is_wp_error( $terms ) ) {
-                $attributes[ $attribute->attribute_name ] = array(
-                    'label' => $attribute->attribute_label,
-                    'terms' => $terms,
-                );
+        foreach ( $terms as $term ) {
+            $numeric = preg_replace( '/[^0-9]/', '', $term->name );
+            if ( $numeric !== '' ) {
+                $values[] = intval( $numeric );
             }
         }
 
-        return $attributes;
+        if ( empty( $values ) ) {
+            return array( 'min' => 0, 'max' => 0 );
+        }
+
+        return array(
+            'min' => min( $values ),
+            'max' => max( $values ),
+        );
     }
 
     /**
-     * Get product categories for filtering
+     * Get terms for a specific attribute, optionally filtered by parent attribute
      *
+     * @param string $attribute_slug The attribute slug.
+     * @param string $parent_value   Optional parent filter value (e.g., make for model).
      * @return array
      */
-    public function get_product_categories() {
-        return get_terms(
-            array(
-                'taxonomy'   => 'product_cat',
-                'hide_empty' => true,
-            )
-        );
+    public function get_attribute_terms( $attribute_slug, $parent_value = '' ) {
+        $taxonomy = 'pa_' . $attribute_slug;
+        $config   = $this->vehicle_attributes[ $attribute_slug ] ?? null;
+
+        $terms = get_terms( array(
+            'taxonomy'   => $taxonomy,
+            'hide_empty' => true,
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+        ) );
+
+        if ( is_wp_error( $terms ) ) {
+            return array();
+        }
+
+        // If this attribute depends on another and a parent value is provided
+        if ( $config && isset( $config['depends_on'] ) && ! empty( $parent_value ) ) {
+            $terms = $this->filter_terms_by_parent( $terms, $attribute_slug, $config['depends_on'], $parent_value );
+        }
+
+        return $terms;
+    }
+
+    /**
+     * Filter terms based on parent attribute value
+     * Only returns terms that exist on products with the given parent attribute value
+     *
+     * @param array  $terms           Terms to filter.
+     * @param string $attribute_slug  Current attribute slug.
+     * @param string $parent_slug     Parent attribute slug.
+     * @param string $parent_value    Parent attribute value.
+     * @return array Filtered terms.
+     */
+    private function filter_terms_by_parent( $terms, $attribute_slug, $parent_slug, $parent_value ) {
+        // Get product IDs that have the parent attribute value
+        $product_ids = wc_get_products( array(
+            'limit'  => -1,
+            'return' => 'ids',
+            'status' => 'publish',
+            'tax_query' => array(
+                array(
+                    'taxonomy' => 'pa_' . $parent_slug,
+                    'field'    => 'slug',
+                    'terms'    => $parent_value,
+                ),
+            ),
+        ) );
+
+        if ( empty( $product_ids ) ) {
+            return array();
+        }
+
+        // Get terms that exist on these products
+        $valid_term_ids = array();
+        foreach ( $product_ids as $product_id ) {
+            $product_terms = wp_get_post_terms( $product_id, 'pa_' . $attribute_slug, array( 'fields' => 'ids' ) );
+            if ( ! is_wp_error( $product_terms ) ) {
+                $valid_term_ids = array_merge( $valid_term_ids, $product_terms );
+            }
+        }
+
+        $valid_term_ids = array_unique( $valid_term_ids );
+
+        // Filter the terms
+        return array_filter( $terms, function( $term ) use ( $valid_term_ids ) {
+            return in_array( $term->term_id, $valid_term_ids );
+        } );
     }
 
     /**
@@ -255,18 +406,92 @@ class Filter_WooCommerce_Handler {
     }
 
     /**
-     * Build filter URL
+     * Check if a specific filter is active
      *
-     * @param array $filters Filter parameters.
+     * @param string $attribute_slug Attribute slug.
+     * @param string $term_slug      Optional specific term slug.
+     * @return bool
+     */
+    public function is_filter_active( $attribute_slug, $term_slug = '' ) {
+        if ( ! isset( $this->active_filters[ $attribute_slug ] ) ) {
+            return false;
+        }
+
+        if ( empty( $term_slug ) ) {
+            return true;
+        }
+
+        $active = $this->active_filters[ $attribute_slug ];
+
+        // For range filters
+        if ( is_array( $active ) && ( isset( $active['min'] ) || isset( $active['max'] ) ) ) {
+            return true;
+        }
+
+        // For select filters
+        return in_array( $term_slug, (array) $active );
+    }
+
+    /**
+     * Get the active value for a filter
+     *
+     * @param string $attribute_slug Attribute slug.
+     * @return mixed
+     */
+    public function get_active_filter_value( $attribute_slug ) {
+        return $this->active_filters[ $attribute_slug ] ?? null;
+    }
+
+    /**
+     * Build filter URL with given parameters
+     *
+     * @param array $filters Filter parameters to add/modify.
+     * @param array $remove  Filter parameters to remove.
      * @return string
      */
-    public function build_filter_url( $filters = array() ) {
-        $base_url = wc_get_page_permalink( 'shop' );
+    public function build_filter_url( $filters = array(), $remove = array() ) {
+        $base_url = is_shop() ? wc_get_page_permalink( 'shop' ) : get_permalink();
 
-        if ( empty( $filters ) ) {
+        // Start with current filters
+        $params = array();
+        foreach ( $this->active_filters as $slug => $value ) {
+            $config = $this->vehicle_attributes[ $slug ] ?? null;
+
+            if ( $config && $config['type'] === 'range' ) {
+                if ( isset( $value['min'] ) ) {
+                    $params[ 'filter_' . $slug . '_min' ] = $value['min'];
+                }
+                if ( isset( $value['max'] ) ) {
+                    $params[ 'filter_' . $slug . '_max' ] = $value['max'];
+                }
+            } else {
+                $params[ 'filter_' . $slug ] = implode( ',', (array) $value );
+            }
+        }
+
+        // Add new filters
+        foreach ( $filters as $key => $value ) {
+            $params[ $key ] = $value;
+        }
+
+        // Remove specified filters
+        foreach ( $remove as $key ) {
+            unset( $params[ $key ] );
+        }
+
+        if ( empty( $params ) ) {
             return $base_url;
         }
 
-        return add_query_arg( $filters, $base_url );
+        return add_query_arg( $params, $base_url );
+    }
+
+    /**
+     * Get URL to clear all filters
+     *
+     * @return string
+     */
+    public function get_clear_url() {
+        return is_shop() ? wc_get_page_permalink( 'shop' ) : get_permalink();
     }
 }

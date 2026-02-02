@@ -1,5 +1,5 @@
 /**
- * Filter for WooCommerce - Frontend JavaScript
+ * Filter for WooCommerce - Vehicle Filter JavaScript
  *
  * @package FilterWooCommerce
  */
@@ -8,15 +8,16 @@
     'use strict';
 
     /**
-     * Filter WooCommerce main object
+     * Vehicle Filter main object
      */
-    var FilterWooCommerce = {
+    var VehicleFilter = {
         /**
          * Initialize
          */
         init: function() {
             this.cacheElements();
             this.bindEvents();
+            this.initDependentFilters();
         },
 
         /**
@@ -43,19 +44,26 @@
                 }
             });
 
-            // Checkbox changes for AJAX filtering
-            this.$form.on('change', 'input[type="checkbox"]', function() {
+            // Select dropdown changes
+            this.$form.on('change', '.filter-woocommerce-select', function() {
+                var $select = $(this);
+                var attribute = $select.data('attribute');
+
+                // Handle dependent filters
+                self.handleDependentFilters(attribute, $select.val());
+
+                // Auto-submit if AJAX enabled
                 if (self.isAjaxEnabled()) {
                     self.filterProducts();
                 }
             });
 
-            // Price input changes (with debounce)
-            var priceTimeout;
-            this.$form.on('input', '.filter-woocommerce-min-price, .filter-woocommerce-max-price', function() {
+            // Range input changes (with debounce)
+            var rangeTimeout;
+            this.$form.on('input', '.filter-woocommerce-range-min, .filter-woocommerce-range-max', function() {
                 if (self.isAjaxEnabled()) {
-                    clearTimeout(priceTimeout);
-                    priceTimeout = setTimeout(function() {
+                    clearTimeout(rangeTimeout);
+                    rangeTimeout = setTimeout(function() {
                         self.filterProducts();
                     }, 500);
                 }
@@ -88,6 +96,97 @@
                     e.preventDefault();
                     var page = self.getPageFromUrl($(this).attr('href'));
                     self.filterProducts(page);
+                }
+            });
+        },
+
+        /**
+         * Initialize dependent filters (e.g., Model depends on Make)
+         */
+        initDependentFilters: function() {
+            var self = this;
+
+            this.$form.find('.filter-woocommerce-section[data-depends-on]').each(function() {
+                var $section = $(this);
+                var dependsOn = $section.data('depends-on');
+                var $parentSelect = self.$form.find('.filter-woocommerce-select[data-attribute="' + dependsOn + '"]');
+
+                if ($parentSelect.length && !$parentSelect.val()) {
+                    $section.find('.filter-woocommerce-select').prop('disabled', true);
+                }
+            });
+        },
+
+        /**
+         * Handle dependent filter updates
+         */
+        handleDependentFilters: function(parentAttribute, parentValue) {
+            var self = this;
+
+            // Find sections that depend on this attribute
+            this.$form.find('.filter-woocommerce-section[data-depends-on="' + parentAttribute + '"]').each(function() {
+                var $section = $(this);
+                var $select = $section.find('.filter-woocommerce-select');
+                var attribute = $select.data('attribute');
+
+                if (!parentValue) {
+                    // Parent cleared - disable and reset dependent
+                    $select.prop('disabled', true).val('');
+                    return;
+                }
+
+                // Enable and load filtered options
+                $select.prop('disabled', false);
+
+                // Load filtered terms via AJAX
+                self.loadDependentTerms(attribute, parentAttribute, parentValue, $select);
+            });
+        },
+
+        /**
+         * Load dependent terms via AJAX
+         */
+        loadDependentTerms: function(attribute, parentAttribute, parentValue, $select) {
+            var currentValue = $select.val();
+
+            $.ajax({
+                url: filterWooCommerce.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'filter_woocommerce_get_terms',
+                    nonce: filterWooCommerce.nonce,
+                    attribute: attribute,
+                    parent_attribute: parentAttribute,
+                    parent_value: parentValue
+                },
+                beforeSend: function() {
+                    $select.prop('disabled', true);
+                },
+                success: function(response) {
+                    if (response.success) {
+                        var terms = response.data.terms;
+                        var placeholder = $select.find('option:first').text();
+
+                        // Rebuild select options
+                        $select.empty();
+                        $select.append('<option value="">' + placeholder + '</option>');
+
+                        $.each(terms, function(index, term) {
+                            $select.append(
+                                '<option value="' + term.slug + '">' +
+                                term.name + ' (' + term.count + ')' +
+                                '</option>'
+                            );
+                        });
+
+                        // Try to restore previous value
+                        if (currentValue) {
+                            $select.val(currentValue);
+                        }
+                    }
+                },
+                complete: function() {
+                    $select.prop('disabled', false);
                 }
             });
         },
@@ -143,68 +242,37 @@
         collectFilterData: function() {
             var data = {};
 
-            // Price
-            var minPrice = this.$form.find('.filter-woocommerce-min-price').val();
-            var maxPrice = this.$form.find('.filter-woocommerce-max-price').val();
-            if (minPrice) data.min_price = minPrice;
-            if (maxPrice) data.max_price = maxPrice;
-
-            // Categories
-            var categories = [];
-            this.$form.find('input[name="product_cat[]"]:checked').each(function() {
-                categories.push($(this).val());
-            });
-            if (categories.length) data.categories = categories;
-
-            // Attributes
-            var attributes = {};
-            this.$form.find('.filter-woocommerce-attribute').each(function() {
-                var $section = $(this);
-                var attributeName = '';
-
-                // Extract attribute name from section class
-                var classes = $section.attr('class').split(' ');
-                for (var i = 0; i < classes.length; i++) {
-                    if (classes[i].indexOf('filter-woocommerce-') === 0 &&
-                        classes[i] !== 'filter-woocommerce-section' &&
-                        classes[i] !== 'filter-woocommerce-attribute') {
-                        attributeName = classes[i].replace('filter-woocommerce-', '');
-                        break;
-                    }
-                }
-
-                if (attributeName) {
-                    var selectedTerms = [];
-                    $section.find('input[type="checkbox"]:checked').each(function() {
-                        selectedTerms.push($(this).val());
-                    });
-                    if (selectedTerms.length) {
-                        attributes[attributeName] = selectedTerms;
-                    }
+            // Collect select filters
+            this.$form.find('.filter-woocommerce-select').each(function() {
+                var $select = $(this);
+                var value = $select.val();
+                if (value) {
+                    data[$select.attr('name')] = value;
                 }
             });
-            if (Object.keys(attributes).length) data.attributes = attributes;
 
-            // Rating
-            var ratings = [];
-            this.$form.find('input[name="rating_filter[]"]:checked').each(function() {
-                ratings.push($(this).val());
+            // Collect range filters
+            this.$form.find('.filter-woocommerce-range-min').each(function() {
+                var $input = $(this);
+                var value = $input.val();
+                if (value) {
+                    data[$input.attr('name')] = value;
+                }
             });
-            if (ratings.length) data.rating = ratings;
 
-            // Stock status
-            if (this.$form.find('input[name="in_stock"]').is(':checked')) {
-                data.in_stock = 1;
-            }
-
-            // On sale
-            if (this.$form.find('input[name="on_sale"]').is(':checked')) {
-                data.on_sale = 1;
-            }
+            this.$form.find('.filter-woocommerce-range-max').each(function() {
+                var $input = $(this);
+                var value = $input.val();
+                if (value) {
+                    data[$input.attr('name')] = value;
+                }
+            });
 
             // Sorting
             var orderby = $('.woocommerce-ordering select').val();
-            if (orderby) data.orderby = orderby;
+            if (orderby) {
+                data.orderby = orderby;
+            }
 
             return data;
         },
@@ -256,16 +324,9 @@
             var url = new URL(window.location.href);
 
             // Clear existing filter params
-            url.searchParams.delete('min_price');
-            url.searchParams.delete('max_price');
-            url.searchParams.delete('on_sale');
-            url.searchParams.delete('in_stock');
-            url.searchParams.delete('rating_filter');
-
-            // Remove attribute filters
             var keysToDelete = [];
             url.searchParams.forEach(function(value, key) {
-                if (key.indexOf('filter_') === 0 || key === 'product_cat') {
+                if (key.indexOf('filter_') === 0) {
                     keysToDelete.push(key);
                 }
             });
@@ -274,19 +335,9 @@
             });
 
             // Add new params
-            if (data.min_price) url.searchParams.set('min_price', data.min_price);
-            if (data.max_price) url.searchParams.set('max_price', data.max_price);
-            if (data.on_sale) url.searchParams.set('on_sale', '1');
-            if (data.in_stock) url.searchParams.set('in_stock', '1');
-            if (data.rating && data.rating.length) {
-                url.searchParams.set('rating_filter', data.rating.join(','));
-            }
-            if (data.categories && data.categories.length) {
-                url.searchParams.set('product_cat', data.categories.join(','));
-            }
-            if (data.attributes) {
-                for (var attr in data.attributes) {
-                    url.searchParams.set('filter_' + attr, data.attributes[attr].join(','));
+            for (var key in data) {
+                if (key.indexOf('filter_') === 0 && data[key]) {
+                    url.searchParams.set(key, data[key]);
                 }
             }
 
@@ -365,24 +416,45 @@
          */
         removeFilter: function($element) {
             var href = $element.attr('href');
-            var url = new URL(href, window.location.origin);
 
-            // Update form inputs based on removed parameter
-            url.searchParams.forEach(function(value, key) {
-                // This will be handled by page reload for non-AJAX
-            });
+            // If AJAX enabled, parse the param and clear it from form
+            if (this.isAjaxEnabled()) {
+                var url = new URL(href, window.location.origin);
 
-            // Reload with updated URL
-            window.location.href = href;
+                // Find which parameter was removed by comparing current URL params
+                var currentUrl = new URL(window.location.href);
+                var self = this;
+
+                currentUrl.searchParams.forEach(function(value, key) {
+                    if (!url.searchParams.has(key)) {
+                        // This param was removed
+                        var $input = self.$form.find('[name="' + key + '"]');
+                        if ($input.length) {
+                            $input.val('');
+                        }
+                    }
+                });
+
+                this.filterProducts();
+            } else {
+                window.location.href = href;
+            }
         },
 
         /**
          * Clear all filters
          */
         clearAllFilters: function() {
-            // Reset form
-            this.$form.find('input[type="checkbox"]').prop('checked', false);
-            this.$form.find('input[type="number"]').val('');
+            // Reset all selects
+            this.$form.find('.filter-woocommerce-select').val('');
+
+            // Reset all range inputs
+            this.$form.find('.filter-woocommerce-range-min, .filter-woocommerce-range-max').val('');
+
+            // Reset dependent filter states
+            this.$form.find('.filter-woocommerce-section[data-depends-on]').each(function() {
+                $(this).find('.filter-woocommerce-select').prop('disabled', true);
+            });
 
             // Reload products
             this.filterProducts();
@@ -393,7 +465,7 @@
      * Initialize on document ready
      */
     $(document).ready(function() {
-        FilterWooCommerce.init();
+        VehicleFilter.init();
     });
 
 })(jQuery);

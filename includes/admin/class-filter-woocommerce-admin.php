@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Filter_WooCommerce_Admin class
  *
- * Handles admin functionality for the plugin
+ * Handles admin functionality for the vehicle filter plugin
  */
 class Filter_WooCommerce_Admin {
 
@@ -47,8 +47,8 @@ class Filter_WooCommerce_Admin {
     public function add_admin_menu() {
         add_submenu_page(
             'woocommerce',
-            __( 'Product Filters', 'filter-woocommerce' ),
-            __( 'Product Filters', 'filter-woocommerce' ),
+            __( 'Vehicle Filters', 'filter-woocommerce' ),
+            __( 'Vehicle Filters', 'filter-woocommerce' ),
             'manage_woocommerce',
             'filter-woocommerce',
             array( $this, 'render_settings_page' )
@@ -82,20 +82,20 @@ class Filter_WooCommerce_Admin {
             'filter_woocommerce_general',
             array(
                 'id'          => 'enable_ajax',
-                'description' => __( 'Filter products without page reload.', 'filter-woocommerce' ),
+                'description' => __( 'Filter vehicles without page reload.', 'filter-woocommerce' ),
             )
         );
 
         // Show product count
         add_settings_field(
             'show_count',
-            __( 'Show Product Count', 'filter-woocommerce' ),
+            __( 'Show Vehicle Count', 'filter-woocommerce' ),
             array( $this, 'render_checkbox_field' ),
             'filter-woocommerce',
             'filter_woocommerce_general',
             array(
                 'id'          => 'show_count',
-                'description' => __( 'Display the number of products for each filter option.', 'filter-woocommerce' ),
+                'description' => __( 'Display the number of vehicles for each filter option.', 'filter-woocommerce' ),
             )
         );
 
@@ -108,93 +108,7 @@ class Filter_WooCommerce_Admin {
             'filter_woocommerce_general',
             array(
                 'id'          => 'hide_empty',
-                'description' => __( 'Hide filter options with no products.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Filter section
-        add_settings_section(
-            'filter_woocommerce_filters',
-            __( 'Filter Options', 'filter-woocommerce' ),
-            array( $this, 'render_filters_section' ),
-            'filter-woocommerce'
-        );
-
-        // Price filter
-        add_settings_field(
-            'enable_price_filter',
-            __( 'Price Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_price_filter',
-                'description' => __( 'Enable filtering by price range.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Category filter
-        add_settings_field(
-            'enable_category_filter',
-            __( 'Category Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_category_filter',
-                'description' => __( 'Enable filtering by product category.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Attribute filter
-        add_settings_field(
-            'enable_attribute_filter',
-            __( 'Attribute Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_attribute_filter',
-                'description' => __( 'Enable filtering by product attributes.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Rating filter
-        add_settings_field(
-            'enable_rating_filter',
-            __( 'Rating Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_rating_filter',
-                'description' => __( 'Enable filtering by product rating.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Stock filter
-        add_settings_field(
-            'enable_stock_filter',
-            __( 'Stock Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_stock_filter',
-                'description' => __( 'Enable filtering by stock status.', 'filter-woocommerce' ),
-            )
-        );
-
-        // Sale filter
-        add_settings_field(
-            'enable_sale_filter',
-            __( 'Sale Filter', 'filter-woocommerce' ),
-            array( $this, 'render_checkbox_field' ),
-            'filter-woocommerce',
-            'filter_woocommerce_filters',
-            array(
-                'id'          => 'enable_sale_filter',
-                'description' => __( 'Enable filtering products on sale.', 'filter-woocommerce' ),
+                'description' => __( 'Hide filter options with no vehicles.', 'filter-woocommerce' ),
             )
         );
     }
@@ -212,12 +126,6 @@ class Filter_WooCommerce_Admin {
             'enable_ajax',
             'show_count',
             'hide_empty',
-            'enable_price_filter',
-            'enable_category_filter',
-            'enable_attribute_filter',
-            'enable_rating_filter',
-            'enable_stock_filter',
-            'enable_sale_filter',
         );
 
         foreach ( $checkboxes as $checkbox ) {
@@ -231,14 +139,7 @@ class Filter_WooCommerce_Admin {
      * Render general section description
      */
     public function render_general_section() {
-        echo '<p>' . esc_html__( 'Configure the general behavior of the product filters.', 'filter-woocommerce' ) . '</p>';
-    }
-
-    /**
-     * Render filters section description
-     */
-    public function render_filters_section() {
-        echo '<p>' . esc_html__( 'Choose which filter types to enable.', 'filter-woocommerce' ) . '</p>';
+        echo '<p>' . esc_html__( 'Configure the general behavior of the vehicle filters.', 'filter-woocommerce' ) . '</p>';
     }
 
     /**
@@ -267,6 +168,9 @@ class Filter_WooCommerce_Admin {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
             return;
         }
+
+        $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
+        $vehicle_attributes = $filter_handler->get_vehicle_attributes();
         ?>
         <div class="wrap">
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -281,9 +185,57 @@ class Filter_WooCommerce_Admin {
 
             <hr>
 
+            <h2><?php esc_html_e( 'Vehicle Attributes', 'filter-woocommerce' ); ?></h2>
+            <p><?php esc_html_e( 'The following vehicle attributes are configured for filtering:', 'filter-woocommerce' ); ?></p>
+
+            <table class="widefat" style="max-width: 600px;">
+                <thead>
+                    <tr>
+                        <th><?php esc_html_e( 'Attribute', 'filter-woocommerce' ); ?></th>
+                        <th><?php esc_html_e( 'Slug', 'filter-woocommerce' ); ?></th>
+                        <th><?php esc_html_e( 'Type', 'filter-woocommerce' ); ?></th>
+                        <th><?php esc_html_e( 'Status', 'filter-woocommerce' ); ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $vehicle_attributes as $slug => $config ) : ?>
+                        <?php
+                        $taxonomy = 'pa_' . $slug;
+                        $exists = taxonomy_exists( $taxonomy );
+                        $term_count = $exists ? wp_count_terms( array( 'taxonomy' => $taxonomy, 'hide_empty' => false ) ) : 0;
+                        ?>
+                        <tr>
+                            <td><strong><?php echo esc_html( $config['label'] ); ?></strong></td>
+                            <td><code>pa_<?php echo esc_html( $slug ); ?></code></td>
+                            <td><?php echo esc_html( ucfirst( $config['type'] ) ); ?></td>
+                            <td>
+                                <?php if ( $exists && $term_count > 0 ) : ?>
+                                    <span style="color: green;">&#10003; <?php printf( esc_html__( '%d terms', 'filter-woocommerce' ), $term_count ); ?></span>
+                                <?php elseif ( $exists ) : ?>
+                                    <span style="color: orange;"><?php esc_html_e( 'No terms', 'filter-woocommerce' ); ?></span>
+                                <?php else : ?>
+                                    <span style="color: red;"><?php esc_html_e( 'Not created', 'filter-woocommerce' ); ?></span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <p class="description">
+                <?php
+                printf(
+                    esc_html__( 'To add these attributes, go to %s and create product attributes with the slugs shown above.', 'filter-woocommerce' ),
+                    '<a href="' . esc_url( admin_url( 'edit.php?post_type=product&page=product_attributes' ) ) . '">' . esc_html__( 'Products → Attributes', 'filter-woocommerce' ) . '</a>'
+                );
+                ?>
+            </p>
+
+            <hr>
+
             <h2><?php esc_html_e( 'Shortcode Usage', 'filter-woocommerce' ); ?></h2>
-            <p><?php esc_html_e( 'Use the following shortcode to display the product filter anywhere on your site:', 'filter-woocommerce' ); ?></p>
-            <code>[wc_product_filter]</code>
+            <p><?php esc_html_e( 'Use the following shortcode to display the vehicle filter anywhere on your site:', 'filter-woocommerce' ); ?></p>
+            <code>[wc_vehicle_filter]</code>
 
             <h3><?php esc_html_e( 'Shortcode Attributes', 'filter-woocommerce' ); ?></h3>
             <table class="widefat" style="max-width: 600px;">
@@ -296,36 +248,6 @@ class Filter_WooCommerce_Admin {
                 </thead>
                 <tbody>
                     <tr>
-                        <td><code>show_price</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show price filter', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>show_categories</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show category filter', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>show_attributes</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show attribute filters', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>show_rating</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show rating filter', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>show_stock</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show in-stock filter', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><code>show_sale</code></td>
-                        <td>yes</td>
-                        <td><?php esc_html_e( 'Show on-sale filter', 'filter-woocommerce' ); ?></td>
-                    </tr>
-                    <tr>
                         <td><code>ajax</code></td>
                         <td>yes</td>
                         <td><?php esc_html_e( 'Enable AJAX filtering', 'filter-woocommerce' ); ?></td>
@@ -335,12 +257,37 @@ class Filter_WooCommerce_Admin {
                         <td>vertical</td>
                         <td><?php esc_html_e( 'Filter layout (vertical/horizontal)', 'filter-woocommerce' ); ?></td>
                     </tr>
+                    <tr>
+                        <td><code>collapsible</code></td>
+                        <td>no</td>
+                        <td><?php esc_html_e( 'Make filter sections collapsible', 'filter-woocommerce' ); ?></td>
+                    </tr>
+                    <tr>
+                        <td><code>show_count</code></td>
+                        <td>yes</td>
+                        <td><?php esc_html_e( 'Show vehicle count per option', 'filter-woocommerce' ); ?></td>
+                    </tr>
                 </tbody>
             </table>
 
             <h3><?php esc_html_e( 'Active Filters Shortcode', 'filter-woocommerce' ); ?></h3>
             <p><?php esc_html_e( 'Display currently active filters:', 'filter-woocommerce' ); ?></p>
             <code>[wc_active_filters]</code>
+
+            <hr>
+
+            <h2><?php esc_html_e( 'Required WooCommerce Attributes', 'filter-woocommerce' ); ?></h2>
+            <p><?php esc_html_e( 'Create the following attributes in WooCommerce with the exact slugs specified:', 'filter-woocommerce' ); ?></p>
+            <ol>
+                <li><strong>new-or-used</strong> - <?php esc_html_e( 'New or Used condition', 'filter-woocommerce' ); ?></li>
+                <li><strong>make</strong> - <?php esc_html_e( 'Vehicle manufacturer (Toyota, Ford, etc.)', 'filter-woocommerce' ); ?></li>
+                <li><strong>model</strong> - <?php esc_html_e( 'Vehicle model (Corolla, Mustang, etc.)', 'filter-woocommerce' ); ?></li>
+                <li><strong>region</strong> - <?php esc_html_e( 'Geographic region', 'filter-woocommerce' ); ?></li>
+                <li><strong>transmission</strong> - <?php esc_html_e( 'Automatic, Manual, CVT, etc.', 'filter-woocommerce' ); ?></li>
+                <li><strong>body-type</strong> - <?php esc_html_e( 'Sedan, SUV, Hatchback, etc.', 'filter-woocommerce' ); ?></li>
+                <li><strong>kilometers</strong> - <?php esc_html_e( 'Mileage/Odometer reading (numeric)', 'filter-woocommerce' ); ?></li>
+                <li><strong>vehicle-year</strong> - <?php esc_html_e( 'Year model (2020, 2021, etc.)', 'filter-woocommerce' ); ?></li>
+            </ol>
         </div>
         <?php
     }

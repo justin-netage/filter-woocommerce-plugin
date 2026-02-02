@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Filter_WooCommerce_Widget class
  *
- * Widget for displaying product filters in sidebars
+ * Widget for displaying vehicle filters in sidebars
  */
 class Filter_WooCommerce_Widget extends WP_Widget {
 
@@ -23,9 +23,9 @@ class Filter_WooCommerce_Widget extends WP_Widget {
     public function __construct() {
         parent::__construct(
             'filter_woocommerce_widget',
-            __( 'Product Filter', 'filter-woocommerce' ),
+            __( 'Vehicle Filter', 'filter-woocommerce' ),
             array(
-                'description' => __( 'Display product filters for WooCommerce.', 'filter-woocommerce' ),
+                'description' => __( 'Display vehicle attribute filters for WooCommerce.', 'filter-woocommerce' ),
                 'classname'   => 'widget_filter_woocommerce',
             )
         );
@@ -43,7 +43,7 @@ class Filter_WooCommerce_Widget extends WP_Widget {
             return;
         }
 
-        $title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Filter Products', 'filter-woocommerce' );
+        $title = ! empty( $instance['title'] ) ? $instance['title'] : __( 'Find Your Vehicle', 'filter-woocommerce' );
         $title = apply_filters( 'widget_title', $title, $instance, $this->id_base );
 
         echo $args['before_widget'];
@@ -54,18 +54,14 @@ class Filter_WooCommerce_Widget extends WP_Widget {
 
         // Build shortcode attributes from widget settings
         $shortcode_atts = array(
-            'show_price'      => ! empty( $instance['show_price'] ) ? 'yes' : 'no',
-            'show_categories' => ! empty( $instance['show_categories'] ) ? 'yes' : 'no',
-            'show_attributes' => ! empty( $instance['show_attributes'] ) ? 'yes' : 'no',
-            'show_rating'     => ! empty( $instance['show_rating'] ) ? 'yes' : 'no',
-            'show_stock'      => ! empty( $instance['show_stock'] ) ? 'yes' : 'no',
-            'show_sale'       => ! empty( $instance['show_sale'] ) ? 'yes' : 'no',
-            'ajax'            => ! empty( $instance['ajax'] ) ? 'yes' : 'no',
-            'layout'          => 'vertical',
+            'ajax'        => ! empty( $instance['ajax'] ) ? 'yes' : 'no',
+            'layout'      => 'vertical',
+            'collapsible' => ! empty( $instance['collapsible'] ) ? 'yes' : 'no',
+            'show_count'  => ! empty( $instance['show_count'] ) ? 'yes' : 'no',
         );
 
         // Render filter using shortcode
-        echo do_shortcode( '[wc_product_filter ' . $this->build_shortcode_string( $shortcode_atts ) . ']' );
+        echo do_shortcode( '[wc_vehicle_filter ' . $this->build_shortcode_string( $shortcode_atts ) . ']' );
 
         echo $args['after_widget'];
     }
@@ -78,14 +74,10 @@ class Filter_WooCommerce_Widget extends WP_Widget {
      */
     public function form( $instance ) {
         $defaults = array(
-            'title'           => __( 'Filter Products', 'filter-woocommerce' ),
-            'show_price'      => true,
-            'show_categories' => true,
-            'show_attributes' => true,
-            'show_rating'     => true,
-            'show_stock'      => true,
-            'show_sale'       => true,
-            'ajax'            => true,
+            'title'       => __( 'Find Your Vehicle', 'filter-woocommerce' ),
+            'ajax'        => true,
+            'collapsible' => false,
+            'show_count'  => true,
         );
 
         $instance = wp_parse_args( (array) $instance, $defaults );
@@ -104,78 +96,38 @@ class Filter_WooCommerce_Widget extends WP_Widget {
         <p>
             <input type="checkbox"
                    class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_price' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_price' ) ); ?>"
-                   <?php checked( $instance['show_price'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_price' ) ); ?>">
-                <?php esc_html_e( 'Show Price Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_categories' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_categories' ) ); ?>"
-                   <?php checked( $instance['show_categories'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_categories' ) ); ?>">
-                <?php esc_html_e( 'Show Categories Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_attributes' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_attributes' ) ); ?>"
-                   <?php checked( $instance['show_attributes'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_attributes' ) ); ?>">
-                <?php esc_html_e( 'Show Attributes Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_rating' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_rating' ) ); ?>"
-                   <?php checked( $instance['show_rating'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_rating' ) ); ?>">
-                <?php esc_html_e( 'Show Rating Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_stock' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_stock' ) ); ?>"
-                   <?php checked( $instance['show_stock'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_stock' ) ); ?>">
-                <?php esc_html_e( 'Show Stock Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
-                   id="<?php echo esc_attr( $this->get_field_id( 'show_sale' ) ); ?>"
-                   name="<?php echo esc_attr( $this->get_field_name( 'show_sale' ) ); ?>"
-                   <?php checked( $instance['show_sale'] ); ?>>
-            <label for="<?php echo esc_attr( $this->get_field_id( 'show_sale' ) ); ?>">
-                <?php esc_html_e( 'Show On Sale Filter', 'filter-woocommerce' ); ?>
-            </label>
-        </p>
-
-        <p>
-            <input type="checkbox"
-                   class="checkbox"
                    id="<?php echo esc_attr( $this->get_field_id( 'ajax' ) ); ?>"
                    name="<?php echo esc_attr( $this->get_field_name( 'ajax' ) ); ?>"
                    <?php checked( $instance['ajax'] ); ?>>
             <label for="<?php echo esc_attr( $this->get_field_id( 'ajax' ) ); ?>">
                 <?php esc_html_e( 'Enable AJAX Filtering', 'filter-woocommerce' ); ?>
             </label>
+        </p>
+
+        <p>
+            <input type="checkbox"
+                   class="checkbox"
+                   id="<?php echo esc_attr( $this->get_field_id( 'collapsible' ) ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name( 'collapsible' ) ); ?>"
+                   <?php checked( $instance['collapsible'] ); ?>>
+            <label for="<?php echo esc_attr( $this->get_field_id( 'collapsible' ) ); ?>">
+                <?php esc_html_e( 'Make sections collapsible', 'filter-woocommerce' ); ?>
+            </label>
+        </p>
+
+        <p>
+            <input type="checkbox"
+                   class="checkbox"
+                   id="<?php echo esc_attr( $this->get_field_id( 'show_count' ) ); ?>"
+                   name="<?php echo esc_attr( $this->get_field_name( 'show_count' ) ); ?>"
+                   <?php checked( $instance['show_count'] ); ?>>
+            <label for="<?php echo esc_attr( $this->get_field_id( 'show_count' ) ); ?>">
+                <?php esc_html_e( 'Show product count', 'filter-woocommerce' ); ?>
+            </label>
+        </p>
+
+        <p class="description">
+            <?php esc_html_e( 'This widget displays filters for vehicle attributes: New/Used, Make, Model, Region, Transmission, Body Type, Kilometers, and Year.', 'filter-woocommerce' ); ?>
         </p>
         <?php
     }
@@ -190,14 +142,10 @@ class Filter_WooCommerce_Widget extends WP_Widget {
     public function update( $new_instance, $old_instance ) {
         $instance = array();
 
-        $instance['title']           = sanitize_text_field( $new_instance['title'] );
-        $instance['show_price']      = ! empty( $new_instance['show_price'] );
-        $instance['show_categories'] = ! empty( $new_instance['show_categories'] );
-        $instance['show_attributes'] = ! empty( $new_instance['show_attributes'] );
-        $instance['show_rating']     = ! empty( $new_instance['show_rating'] );
-        $instance['show_stock']      = ! empty( $new_instance['show_stock'] );
-        $instance['show_sale']       = ! empty( $new_instance['show_sale'] );
-        $instance['ajax']            = ! empty( $new_instance['ajax'] );
+        $instance['title']       = sanitize_text_field( $new_instance['title'] );
+        $instance['ajax']        = ! empty( $new_instance['ajax'] );
+        $instance['collapsible'] = ! empty( $new_instance['collapsible'] );
+        $instance['show_count']  = ! empty( $new_instance['show_count'] );
 
         return $instance;
     }
