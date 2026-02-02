@@ -161,6 +161,10 @@ class Filter_WooCommerce_Updater {
         $cached        = get_transient( $transient_key );
 
         if ( false !== $cached ) {
+            // Check if it's a cached error
+            if ( is_object( $cached ) && isset( $cached->error ) ) {
+                return false;
+            }
             $this->github_response = $cached;
             return $this->github_response;
         }
@@ -174,8 +178,10 @@ class Filter_WooCommerce_Updater {
 
         $args = array(
             'headers' => array(
-                'Accept' => 'application/vnd.github.v3+json',
+                'Accept'     => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . get_bloginfo( 'url' ),
             ),
+            'timeout' => 10,
         );
 
         if ( ! empty( $this->access_token ) ) {
@@ -184,12 +190,28 @@ class Filter_WooCommerce_Updater {
 
         $response = wp_remote_get( $url, $args );
 
-        if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+        if ( is_wp_error( $response ) ) {
+            // Cache error for 30 minutes to avoid repeated failed requests
+            set_transient( $transient_key, (object) array( 'error' => $response->get_error_message() ), 30 * MINUTE_IN_SECONDS );
             return false;
         }
 
+        $response_code = wp_remote_retrieve_response_code( $response );
         $body = wp_remote_retrieve_body( $response );
         $data = json_decode( $body );
+
+        // Handle rate limiting
+        if ( 403 === $response_code && isset( $data->message ) && strpos( $data->message, 'rate limit' ) !== false ) {
+            // Cache rate limit error for 1 hour
+            set_transient( $transient_key, (object) array( 'error' => 'rate_limited' ), HOUR_IN_SECONDS );
+            return false;
+        }
+
+        if ( 200 !== $response_code ) {
+            // Cache other errors for 30 minutes
+            set_transient( $transient_key, (object) array( 'error' => 'http_' . $response_code ), 30 * MINUTE_IN_SECONDS );
+            return false;
+        }
 
         if ( empty( $data ) || isset( $data->message ) ) {
             return false;
@@ -197,7 +219,7 @@ class Filter_WooCommerce_Updater {
 
         $this->github_response = $data;
 
-        // Cache for 6 hours
+        // Cache successful response for 6 hours
         set_transient( $transient_key, $this->github_response, 6 * HOUR_IN_SECONDS );
 
         return $this->github_response;

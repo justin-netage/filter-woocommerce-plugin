@@ -3,7 +3,7 @@
  * Plugin Name: Filter for WooCommerce
  * Plugin URI: https://github.com/justin-netage/filter-woocommerce-plugin
  * Description: Vehicle attribute filtering plugin for WooCommerce - filter by Make, Model, Year, Kilometers, and more.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Justin Netage
  * Author URI: https://github.com/justin-netage
  * License: GPL-2.0+
@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'FILTER_WOOCOMMERCE_VERSION', '1.1.0' );
+define( 'FILTER_WOOCOMMERCE_VERSION', '1.2.0' );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FILTER_WOOCOMMERCE_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
