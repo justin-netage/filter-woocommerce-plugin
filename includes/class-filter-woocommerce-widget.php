@@ -38,6 +38,11 @@ class Filter_WooCommerce_Widget extends WP_Widget {
      * @param array $instance Widget instance.
      */
     public function widget( $args, $instance ) {
+        // Only show to admin users
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+
         // Only show on WooCommerce pages
         if ( ! is_woocommerce() && ! is_shop() && ! is_product_category() && ! is_product_tag() ) {
             return;

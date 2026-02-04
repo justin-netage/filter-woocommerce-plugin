@@ -40,6 +40,11 @@ class Filter_WooCommerce_Shortcode {
      * @return string
      */
     public function render_filter( $atts ) {
+        // Only show to admin users
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return '';
+        }
+
         $atts = shortcode_atts(
             array(
                 'ajax'       => 'yes',
@@ -198,6 +203,11 @@ class Filter_WooCommerce_Shortcode {
      * @return string
      */
     public function render_active_filters( $atts ) {
+        // Only show to admin users
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return '';
+        }
+
         $atts = shortcode_atts(
             array(
                 'title' => __( 'Active Filters', 'filter-woocommerce' ),

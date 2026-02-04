@@ -109,6 +109,11 @@ class Filter_WooCommerce {
      * Enqueue frontend scripts and styles
      */
     public function enqueue_frontend_assets() {
+        // Only enqueue for admin users
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+
         // Only enqueue on WooCommerce pages
         if ( ! is_woocommerce() && ! is_shop() && ! is_product_category() && ! is_product_tag() ) {
             return;

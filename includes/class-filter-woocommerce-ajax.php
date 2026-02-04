@@ -28,17 +28,14 @@ class Filter_WooCommerce_Ajax {
      * Initialize hooks
      */
     private function init_hooks() {
-        // AJAX filter products
+        // AJAX filter products (admin only - no nopriv hooks)
         add_action( 'wp_ajax_filter_woocommerce_products', array( $this, 'filter_products' ) );
-        add_action( 'wp_ajax_nopriv_filter_woocommerce_products', array( $this, 'filter_products' ) );
 
         // AJAX get dependent terms (e.g., models for a specific make)
         add_action( 'wp_ajax_filter_woocommerce_get_terms', array( $this, 'get_dependent_terms' ) );
-        add_action( 'wp_ajax_nopriv_filter_woocommerce_get_terms', array( $this, 'get_dependent_terms' ) );
 
         // AJAX get filter counts
         add_action( 'wp_ajax_filter_woocommerce_counts', array( $this, 'get_filter_counts' ) );
-        add_action( 'wp_ajax_nopriv_filter_woocommerce_counts', array( $this, 'get_filter_counts' ) );
     }
 
     /**
@@ -48,6 +45,11 @@ class Filter_WooCommerce_Ajax {
         // Verify nonce
         if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'filter_woocommerce_nonce' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
+        }
+
+        // Check admin capability
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Permission denied.', 'filter-woocommerce' ) ) );
         }
 
         $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
@@ -240,6 +242,11 @@ class Filter_WooCommerce_Ajax {
             wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
         }
 
+        // Check admin capability
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Permission denied.', 'filter-woocommerce' ) ) );
+        }
+
         $attribute = isset( $_POST['attribute'] ) ? sanitize_text_field( $_POST['attribute'] ) : '';
         $parent_attribute = isset( $_POST['parent_attribute'] ) ? sanitize_text_field( $_POST['parent_attribute'] ) : '';
         $parent_value = isset( $_POST['parent_value'] ) ? sanitize_text_field( $_POST['parent_value'] ) : '';
@@ -272,6 +279,11 @@ class Filter_WooCommerce_Ajax {
         // Verify nonce
         if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'filter_woocommerce_nonce' ) ) {
             wp_send_json_error( array( 'message' => __( 'Security check failed.', 'filter-woocommerce' ) ) );
+        }
+
+        // Check admin capability
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( array( 'message' => __( 'Permission denied.', 'filter-woocommerce' ) ) );
         }
 
         $filter_handler = Filter_WooCommerce::get_instance()->filter_handler;
